@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AAPL 投资监控看板</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --bg2: #111418;
+    --bg3: #181d23;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaed;
+    --text2: #8a9099;
+    --text3: #4a5260;
+    --green: #00d084;
+    --green-dim: rgba(0,208,132,0.12);
+    --red: #ff4d6d;
+    --red-dim: rgba(255,77,109,0.12);
+    --amber: #ffb830;
+    --amber-dim: rgba(255,184,48,0.12);
+    --blue: #4d9fff;
+    --blue-dim: rgba(77,159,255,0.10);
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  .shell { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+  .header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 28px; flex-wrap: wrap; gap: 16px;
+  }
+  .ticker { font-size: 11px; color: var(--text3); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 4px; }
+  .price-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .price { font-size: 42px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; line-height: 1; }
+  .price-change { font-size: 16px; font-weight: 500; color: var(--green); }
+  .price-date { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .header-right { text-align: right; }
+  .last-update { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+  .main-signal {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 4px;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.04em;
+  }
+  .signal-hold { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,184,48,0.25); }
+  .signal-buy  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,208,132,0.25); }
+  .signal-trim { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,77,109,0.25); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+  .dot-amber { background: var(--amber); }
+  .dot-green { background: var(--green); }
+  .dot-red { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .section-label {
+    font-size: 10px; letter-spacing: 0.15em;
+    color: var(--text3); margin-bottom: 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  @media(max-width: 720px) {
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+  @media(max-width: 480px) { .grid-4 { grid-template-columns: 1fr 1fr; } }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; }
+  .card-lbl { font-size: 10px; color: var(--text3); letter-spacing: 0.08em; margin-bottom: 6px; }
+  .card-val { font-size: 20px; font-weight: 500; color: var(--text); }
+  .card-sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
+  .card-green .card-val { color: var(--green); }
+  .card-red .card-val { color: var(--red); }
+  .card-amber .card-val { color: var(--amber); }
+  .card-blue .card-val { color: var(--blue); }
+  .signal-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+  .signal-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 16px; border-bottom: 1px solid var(--border); gap: 12px;
+  }
+  .signal-row:last-child { border-bottom: none; }
+  .signal-name { color: var(--text2); font-size: 12px; flex: 1; }
+  .signal-val { font-size: 12px; font-weight: 500; }
+  .signal-badge {
+    font-size: 10px; letter-spacing: 0.05em;
+    padding: 2px 8px; border-radius: 3px; white-space: nowrap;
+  }
+  .sb-green { background: var(--green-dim); color: var(--green); }
+  .sb-red   { background: var(--red-dim); color: var(--red); }
+  .sb-amber { background: var(--amber-dim); color: var(--amber); }
+  .sb-blue  { background: var(--blue-dim); color: var(--blue); }
+  .rsi-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+  .rsi-track { height: 8px; border-radius: 4px; background: var(--bg3); position: relative; margin: 14px 0 8px; overflow: visible; }
+  .rsi-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--green) 0%, var(--amber) 50%, var(--red) 100%); width: 100%; }
+  .rsi-needle {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--red);
+    box-shadow: 0 0 0 3px var(--red-dim);
+  }
+  .rsi-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); }
+  .levels-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+  .level-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--border); gap: 12px;
+  }
+  .level-row:last-child { border-bottom: none; }
+  .level-type { font-size: 11px; width: 80px; flex-shrink: 0; }
+  .level-price { font-size: 14px; font-weight: 500; }
+  .level-desc { font-size: 11px; color: var(--text2); flex: 1; text-align: right; }
+  .cal-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+  .cal-row { display: flex; align-items: flex-start; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .cal-row:last-child { border-bottom: none; }
+  .cal-date { font-size: 11px; font-weight: 500; color: var(--text3); white-space: nowrap; width: 60px; flex-shrink: 0; padding-top: 1px; }
+  .cal-dot-line { display: flex; flex-direction: column; align-items: center; padding-top: 5px; }
+  .cal-dot2 { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .cal-content { flex: 1; }
+  .cal-title { font-size: 12px; font-weight: 500; color: var(--text); }
+  .cal-detail { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .pnl-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+  .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .input-group label { display: block; font-size: 10px; color: var(--text3); letter-spacing: 0.08em; margin-bottom: 6px; }
+  .input-group input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 4px; color: var(--text); font-family: var(--mono);
+    font-size: 14px; padding: 8px 10px; outline: none; transition: border-color 0.2s;
+  }
+  .input-group input:focus { border-color: var(--blue); }
+  .pnl-result { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; background: var(--bg3); border-radius: 4px; }
+  .pnl-item { text-align: center; }
+  .pnl-lbl { font-size: 10px; color: var(--text3); letter-spacing: 0.06em; margin-bottom: 4px; }
+  .pnl-num { font-size: 16px; font-weight: 500; }
+  .swing-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+  .swing-step { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .swing-step:last-child { border-bottom: none; }
+  .swing-num {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--bg3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 500; color: var(--text2); flex-shrink: 0;
+  }
+  .swing-text { font-size: 12px; color: var(--text2); line-height: 1.6; }
+  .swing-text strong { color: var(--text); font-weight: 500; }
+  .risk-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+  .risk-row { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .risk-row:last-child { border-bottom: none; }
+  .risk-indicator { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 20px; }
+  .risk-body { flex: 1; }
+  .risk-title { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+  .risk-desc { font-size: 11px; color: var(--text2); line-height: 1.55; }
+  .fund-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+  .fund-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 16px; border-bottom: 1px solid var(--border); gap: 10px; }
+  .fund-row:last-child { border-bottom: none; }
+  .fund-k { font-size: 11px; color: var(--text2); }
+  .fund-v { font-size: 12px; font-weight: 500; color: var(--text); text-align: right; }
+  .fund-beat { color: var(--green); }
+  .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text3); line-height: 1.7; }
+  .section { margin-bottom: 28px; }
+  .c-green { color: var(--green); }
+  .c-red { color: var(--red); }
+  .c-amber { color: var(--amber); }
+  .c-blue { color: var(--blue); }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
+  .card, .signal-panel, .rsi-wrap, .levels-panel, .cal-panel, .pnl-panel, .swing-panel, .risk-panel, .fund-panel {
+    animation: fadeUp 0.4s ease both;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- 顶部标题栏 -->
+  <div class="header">
+    <div>
+      <div class="ticker">纳斯达克 · AAPL · 苹果公司</div>
+      <div class="price-row">
+        <div class="price">$293.21</div>
+        <div class="price-change">▲ +$5.77 (+2.05%)</div>
+      </div>
+      <div class="price-date">2026年5月9日 · 收盘价 · 历史最高收盘价</div>
+    </div>
+    <div class="header-right">
+      <div class="last-update">最后更新：2026年5月9日</div>
+      <div class="main-signal signal-hold">
+        <div class="dot dot-amber"></div>
+        持有 — 关注减仓机会
+      </div>
+    </div>
+  </div>
+
+  <!-- 市场快照 -->
+  <div class="section">
+    <div class="section-label">市场快照</div>
+    <div class="grid-4">
+      <div class="card card-amber">
+        <div class="card-lbl">当前价格</div>
+        <div class="card-val">$293.21</div>
+        <div class="card-sub">历史最高收盘</div>
+      </div>
+      <div class="card card-green">
+        <div class="card-lbl">52周最低价</div>
+        <div class="card-val">$193.46</div>
+        <div class="card-sub">距低点已涨 +51.6%</div>
+      </div>
+      <div class="card card-blue">
+        <div class="card-lbl">分析师平均目标价</div>
+        <div class="card-val">$303</div>
+        <div class="card-sub">较当前上涨空间 +3.4%</div>
+      </div>
+      <div class="card card-blue">
+        <div class="card-lbl">最高目标价（Wedbush）</div>
+        <div class="card-val">$400</div>
+        <div class="card-sub">华尔街最乐观预测</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 技术信号 + 右列 -->
+  <div class="grid-2">
+    <div>
+      <div class="section-label">技术指标信号</div>
+      <div class="signal-panel">
+        <div class="signal-row">
+          <span class="signal-name">股价 vs 50日均线（约$261）</span>
+          <span class="signal-val c-amber">+12.4%</span>
+          <span class="signal-badge sb-amber">偏离过高</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">股价 vs 200日均线（约$252）</span>
+          <span class="signal-val c-green">+16.3%</span>
+          <span class="signal-badge sb-green">多头趋势</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">MACD vs 信号线</span>
+          <span class="signal-val c-green">上方</span>
+          <span class="signal-badge sb-green">多头信号</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">成交量信号</span>
+          <span class="signal-val c-green">高于均值</span>
+          <span class="signal-badge sb-green">趋势确认</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">52周位置</span>
+          <span class="signal-val c-red">历史最高</span>
+          <span class="signal-badge sb-amber">上方空间有限</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">综合操作信号</span>
+          <span class="signal-val c-amber">—</span>
+          <span class="signal-badge sb-amber">持有 / 谨慎</span>
+        </div>
+      </div>
+
+      <!-- RSI 仪表 -->
+      <div class="rsi-wrap">
+        <div class="section-label" style="margin-bottom:4px;">相对强弱指数 RSI（14日）</div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <span style="font-size:28px; font-weight:500; color:var(--red);">76.2</span>
+          <span class="signal-badge sb-red" style="font-size:11px; padding:4px 10px;">超买区间 — 注意风险</span>
+        </div>
+        <div class="rsi-track">
+          <div class="rsi-fill"></div>
+          <div class="rsi-needle" style="left:76.2%;"></div>
+        </div>
+        <div class="rsi-labels">
+          <span>0</span><span>30</span><span>50</span><span>70</span><span>100</span>
+        </div>
+        <div style="display:flex; font-size:10px; color:var(--text3); margin-top:6px;">
+          <div style="flex:0.3; color:var(--green);">超卖区（买入）</div>
+          <div style="flex:0.4; text-align:center;">中性区</div>
+          <div style="flex:0.3; color:var(--red); text-align:right;">超买区（减仓）</div>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:var(--text2); line-height:1.6;">
+          RSI 高于70表示股票短期内可能过度上涨。这不是单独的卖出信号，但结合当前历史高位价格，说明现在不是加仓的好时机，应等待回调后再介入。
+        </div>
+      </div>
+    </div>
+
+    <!-- 右列 -->
+    <div>
+      <div class="section-label">关键价格区间</div>
+      <div class="levels-panel" style="margin-bottom:16px;">
+        <div class="level-row">
+          <span class="level-type c-red">减仓区间</span>
+          <span class="level-price c-red">$290–$295</span>
+          <span class="level-desc">历史高位 · RSI超买</span>
+        </div>
+        <div class="level-row">
+          <span class="level-type" style="color:var(--text3);">当前位置</span>
+          <span class="level-price" style="color:var(--amber);">▶ $293</span>
+          <span class="level-desc">现价</span>
+        </div>
+        <div class="level-row">
+          <span class="level-type c-amber">第一支撑</span>
+          <span class="level-price c-amber">$274–$280</span>
+          <span class="level-desc">财报后震荡平台</span>
+        </div>
+        <div class="level-row">
+          <span class="level-type c-green">加仓区间</span>
+          <span class="level-price c-green">$260–$265</span>
+          <span class="level-desc">50日均线附近 · 观察买入</span>
+        </div>
+        <div class="level-row">
+          <span class="level-type c-green">强力加仓区</span>
+          <span class="level-price c-green">$245–$252</span>
+          <span class="level-desc">200日均线附近 · 高确信度</span>
+        </div>
+        <div class="level-row">
+          <span class="level-type c-red">重新评估线</span>
+          <span class="level-price c-red">&lt; $230</span>
+          <span class="level-desc">跌破200均线 · 重新审视持仓</span>
+        </div>
+      </div>
+
+      <!-- 盈亏计算器 -->
+      <div class="section-label">持仓盈亏计算器</div>
+      <div class="pnl-panel">
+        <div class="input-row">
+          <div class="input-group">
+            <label>买入均价（美元）</label>
+            <input type="number" id="buyPrice" value="220" step="0.01" oninput="calcPnL()">
+          </div>
+          <div class="input-group">
+            <label>持有股数</label>
+            <input type="number" id="shares" value="10" step="1" oninput="calcPnL()">
+          </div>
+        </div>
+        <div class="pnl-result">
+          <div class="pnl-item">
+            <div class="pnl-lbl">持仓成本</div>
+            <div class="pnl-num" id="costBasis">$2,200</div>
+          </div>
+          <div class="pnl-item">
+            <div class="pnl-lbl">当前市值</div>
+            <div class="pnl-num" id="curVal">$2,932</div>
+          </div>
+          <div class="pnl-item">
+            <div class="pnl-lbl">盈亏金额</div>
+            <div class="pnl-num c-green" id="pnlNum">+$732</div>
+          </div>
+          <div class="pnl-item" style="grid-column:1">
+            <div class="pnl-lbl">收益率</div>
+            <div class="pnl-num c-green" id="pnlPct">+33.3%</div>
+          </div>
+          <div class="pnl-item">
+            <div class="pnl-lbl">回调至$265时市值</div>
+            <div class="pnl-num" id="valAt265">$2,650</div>
+          </div>
+          <div class="pnl-item">
+            <div class="pnl-lbl">回调至$250时市值</div>
+            <div class="pnl-num" id="valAt250">$2,500</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 基本面数据 -->
+  <div class="section">
+    <div class="section-label">基本面数据 — 2026财年第二季度（2026年4月30日公布）</div>
+    <div class="grid-2">
+      <div class="fund-panel">
+        <div class="fund-row"><span class="fund-k">总营收</span><span class="fund-v fund-beat">$1112亿 ✓ 超预期（同比+17%）</span></div>
+        <div class="fund-row"><span class="fund-k">摊薄每股收益（EPS）</span><span class="fund-v fund-beat">$2.01 ✓ 超预期（预期$1.94–$1.95）</span></div>
+        <div class="fund-row"><span class="fund-k">毛利率</span><span class="fund-v fund-beat">49.3% ✓ 超预期（历史纪录）</span></div>
+        <div class="fund-row"><span class="fund-k">服务业务营收</span><span class="fund-v fund-beat">$310亿 ✓ 历史新高（同比+16%）</span></div>
+        <div class="fund-row"><span class="fund-k">iPhone营收</span><span class="fund-v">$570亿（同比+22%，3月季度纪录）</span></div>
+        <div class="fund-row"><span class="fund-k">大中华区营收</span><span class="fund-v fund-beat">$205亿（同比+28%，超预期）</span></div>
+      </div>
+      <div class="fund-panel">
+        <div class="fund-row"><span class="fund-k">运营现金流</span><span class="fund-v">$287亿（3月季度纪录）</span></div>
+        <div class="fund-row"><span class="fund-k">净利润</span><span class="fund-v">$296亿（同比+22%）</span></div>
+        <div class="fund-row"><span class="fund-k">新增股票回购授权</span><span class="fund-v">$1000亿</span></div>
+        <div class="fund-row"><span class="fund-k">股息（上调4%）</span><span class="fund-v">每股$0.27 · 除息日5月11日</span></div>
+        <div class="fund-row"><span class="fund-k">第三季度营收指引</span><span class="fund-v fund-beat">同比+14%–17%（预期仅+9.5%）</span></div>
+        <div class="fund-row"><span class="fund-k">下次财报日期</span><span class="fund-v">2026年7月30日 · EPS预期$1.87</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 催化剂日历 + 风险监控 -->
+  <div class="grid-2">
+    <div>
+      <div class="section-label">未来催化剂日历</div>
+      <div class="cal-panel">
+        <div class="cal-row">
+          <div class="cal-date">5月11日</div>
+          <div class="cal-dot-line"><div class="cal-dot2" style="background:var(--blue);"></div></div>
+          <div class="cal-content">
+            <div class="cal-title">股票除息日</div>
+            <div class="cal-detail">每股派息$0.27 · 需在此日期前持有股票才能获得股息</div>
+          </div>
+        </div>
+        <div class="cal-row">
+          <div class="cal-date">6月8–12日</div>
+          <div class="cal-dot-line"><div class="cal-dot2" style="background:var(--amber);"></div></div>
+          <div class="cal-content">
+            <div class="cal-title">苹果全球开发者大会（WWDC）⚡ 关键催化剂</div>
+            <div class="cal-detail">Apple Intelligence AI功能披露 · iOS 27 · 折叠屏iPhone进展 · 可能触发股价±8%波动</div>
+          </div>
+        </div>
+        <div class="cal-row">
+          <div class="cal-date">7月30日</div>
+          <div class="cal-dot-line"><div class="cal-dot2" style="background:var(--blue);"></div></div>
+          <div class="cal-content">
+            <div class="cal-title">第三季度财报发布</div>
+            <div class="cal-detail">EPS市场预期$1.87 · 营收指引同比+14%–17% · 下一个重大股价驱动事件</div>
+          </div>
+        </div>
+        <div class="cal-row">
+          <div class="cal-date">9月1日</div>
+          <div class="cal-dot-line"><div class="cal-dot2" style="background:var(--red);"></div></div>
+          <div class="cal-content">
+            <div class="cal-title">CEO权力交接 ⚠ 事件风险</div>
+            <div class="cal-detail">蒂姆·库克 → 约翰·特纳斯 · 市场可能借此机会获利了结 · 需关注该日期前后股价走势</div>
+          </div>
+        </div>
+        <div class="cal-row">
+          <div class="cal-date">9月（预计）</div>
+          <div class="cal-dot-line"><div class="cal-dot2" style="background:var(--blue);"></div></div>
+          <div class="cal-content">
+            <div class="cal-title">iPhone 18 发布会</div>
+            <div class="cal-detail">苹果惯例每年9月发布新iPhone · 端侧AI功能 · 可能驱动新一轮换机升级周期</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">风险监控</div>
+      <div class="risk-panel">
+        <div class="risk-row">
+          <div class="risk-indicator" style="background:var(--red);"></div>
+          <div class="risk-body">
+            <div class="risk-title">股价处于历史最高位</div>
+            <div class="risk-desc">RSI约76，股价为历史最高收盘价。若第三季度财报不达预期或宏观环境恶化，可能引发-10%以上的回调。当前价位安全边际不足。</div>
+          </div>
+        </div>
+        <div class="risk-row">
+          <div class="risk-indicator" style="background:var(--red);"></div>
+          <div class="risk-body">
+            <div class="risk-title">CEO交接不确定性（9月1日）</div>
+            <div class="risk-desc">特纳斯接手时面临AI执行滞后、关税压力和中国地缘政治三重挑战。即使基本面健康，市场也可能借不确定性获利了结。</div>
+          </div>
+        </div>
+        <div class="risk-row">
+          <div class="risk-indicator" style="background:var(--amber);"></div>
+          <div class="risk-body">
+            <div class="risk-title">AI执行进度滞后</div>
+            <div class="risk-desc">Apple Intelligence落后于微软和谷歌。WWDC是AI叙事的关键节点——若功能展示不及预期，股价可能下跌5%–8%。</div>
+          </div>
+        </div>
+        <div class="risk-row">
+          <div class="risk-indicator" style="background:var(--amber);"></div>
+          <div class="risk-body">
+            <div class="risk-title">供应链瓶颈 + 关税压力</div>
+            <div class="risk-desc">台积电3纳米产能瓶颈限制iPhone和Mac出货。苹果在过去三个季度已支付约33亿美元关税。印度工厂良品率比中国低约10%。</div>
+          </div>
+        </div>
+        <div class="risk-row">
+          <div class="risk-indicator" style="background:var(--green);"></div>
+          <div class="risk-body">
+            <div class="risk-title">中国市场强劲反弹（利好）</div>
+            <div class="risk-desc">大中华区营收同比+28%，超出市场预期。苹果与英特尔达成初步芯片代工协议。地缘政治结构性风险仍存在，但短期明显改善。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 波段交易操作手册 -->
+  <div class="section">
+    <div class="section-label">波段交易操作手册 — 六步行动框架</div>
+    <div class="swing-panel">
+      <div class="swing-step">
+        <div class="swing-num">1</div>
+        <div class="swing-text"><strong>当前阶段（历史高位区间 $290–$295）：</strong>保持不动，不要加仓。基本面虽然强劲，但RSI超买、股价处于历史最高位，此时加仓的风险回报比不合算。</div>
+      </div>
+      <div class="swing-step">
+        <div class="swing-num">2</div>
+        <div class="swing-text"><strong>可选减仓（若想锁定部分收益）：</strong>可以考虑在$290–$295区间卖出15%–20%的持仓，剩余股票继续作为长期核心仓位持有。卖出的资金等待低位再买回。</div>
+      </div>
+      <div class="swing-step">
+        <div class="swing-num">3</div>
+        <div class="swing-text"><strong>关注WWDC（6月8–12日）：</strong>若AI功能展示不及预期，股价可能回调至$270–$280，这是第一个买入机会。若功能超出预期，维持核心持仓即可，不追高。</div>
+      </div>
+      <div class="swing-step">
+        <div class="swing-num">4</div>
+        <div class="swing-text"><strong>加仓区间（$260–$265）：</strong>若股价回调至50日均线附近且基本面无重大恶化，可以补回之前减仓的股票。建议提前在$266设置价格提醒。</div>
+      </div>
+      <div class="swing-step">
+        <div class="swing-num">5</div>
+        <div class="swing-text"><strong>强力加仓区间（$245–$252）：</strong>若因美联储政策变化或关税升级等宏观事件导致更深回调至200日均线附近，这是高确信度的加仓点，届时RSI预计在40–45左右。</div>
+      </div>
+      <div class="swing-step">
+        <div class="swing-num">6</div>
+        <div class="swing-text"><strong>逻辑失效条件 — 何时重新评估：</strong>若AAPL跌破$230（远低于200日均线）且伴随负面基本面消息，或第三季度财报严重不达预期，则需暂停操作并重新进行完整分析。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分析师评级 -->
+  <div class="section">
+    <div class="section-label">分析师评级共识</div>
+    <div class="grid-3">
+      <div class="card card-green">
+        <div class="card-lbl">买入评级</div>
+        <div class="card-val">31家</div>
+        <div class="card-sub">共33家分析机构</div>
+      </div>
+      <div class="card card-red">
+        <div class="card-lbl">卖出评级</div>
+        <div class="card-val">2家</div>
+        <div class="card-sub">巴克莱给出低配$215目标</div>
+      </div>
+      <div class="card card-blue">
+        <div class="card-lbl">平均目标价</div>
+        <div class="card-val">$303</div>
+        <div class="card-sub">区间 $215–$400</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <div class="footer">
+    <strong>数据来源：</strong>Investing.com · CNBC第二季度财报报道 · 苹果8-K SEC文件（2026年4月30日）· MacRumors财报电话会 · MarketBeat · AltIndex · TipRanks · Wedbush证券 · 标普全球市场情报<br>
+    <strong>免责声明：</strong>本看板仅为基于公开数据的信息参考，不构成持牌投资顾问建议。所有投资决策及执行均由您本人负责，分析结论不保证未来投资收益。<br>
+    <strong>版本：</strong>1.0中文版 · 2026年5月9日 · 模块C第一阶段 · AI投资研究系统
+  </div>
+
+</div>
+
+<script>
+  const CURRENT_PRICE = 293.21;
+
+  function calcPnL() {
+    const buy = parseFloat(document.getElementById('buyPrice').value) || 0;
+    const shares = parseFloat(document.getElementById('shares').value) || 0;
+    const cost = buy * shares;
+    const cur = CURRENT_PRICE * shares;
+    const gain = cur - cost;
+    const pct = cost > 0 ? (gain / cost) * 100 : 0;
+    document.getElementById('costBasis').textContent = '$' + cost.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+    document.getElementById('curVal').textContent = '$' + cur.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+    const gainEl = document.getElementById('pnlNum');
+    const pctEl = document.getElementById('pnlPct');
+    const sign = gain >= 0 ? '+' : '';
+    gainEl.textContent = sign + '$' + Math.round(gain).toLocaleString('en-US');
+    gainEl.style.color = gain >= 0 ? 'var(--green)' : 'var(--red)';
+    pctEl.textContent = sign + pct.toFixed(1) + '%';
+    pctEl.style.color = gain >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('valAt265').textContent = '$' + Math.round(265 * shares).toLocaleString('en-US');
+    document.getElementById('valAt250').textContent = '$' + Math.round(250 * shares).toLocaleString('en-US');
+  }
+
+  calcPnL();
+</script>
+</body>
+</html>
